@@ -1,8 +1,13 @@
 # Kiro Account Manager
 
 <p align="center">
+  <img src="src-tauri/icons/128x128.png" alt="Logo" width="80">
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-blue" alt="Platform">
   <img src="https://img.shields.io/github/v/release/hj01857655/kiro-account-manager?label=Version&color=green" alt="Version">
+  <img src="https://img.shields.io/github/downloads/hj01857655/kiro-account-manager/total?color=brightgreen" alt="Downloads">
   <img src="https://img.shields.io/github/license/hj01857655/kiro-account-manager?color=orange" alt="License">
   <img src="https://img.shields.io/badge/QQ群-1020204332-12B7F5?logo=tencentqq" alt="QQ群">
 </p>
@@ -12,7 +17,7 @@
 </p>
 
 <p align="center">
-  <b>Smart Kiro token management with one-click switching and quota monitoring</b>
+  <b>🚀 Smart Kiro IDE account management with one-click switching and quota monitoring</b>
 </p>
 
 ---
@@ -23,7 +28,7 @@
 - 🔐 **Multi-Account** - Support Google, GitHub, BuilderId login
 - 🎴 **Card Grid Layout** - Visual display of account status, quota, subscription type
 - 📊 **Quota Monitoring** - Real-time quota usage (main/trial/bonus)
-- 🔄 **One-Click Switch** - Quick account switching with optional machine ID reset
+- 🔄 **One-Click Switch** - Seamless account switching with auto machine ID reset
 - 📦 **Batch Operations** - Batch refresh, delete, import/export
 - ⏰ **Auto Token Refresh** - Scheduled refresh to keep tokens valid
 
@@ -75,15 +80,31 @@
 - **Icons**: Lucide React
 - **Storage**: Local JSON files
 
+## 🚀 Quick Start
+
+1. Download the installer for your platform from [Releases](https://github.com/hj01857655/kiro-account-manager/releases/latest)
+2. Install and launch the application
+3. Login with Google, GitHub, or BuilderId
+4. Manage your Kiro accounts with ease!
+
 ## 💬 Feedback
 
 - 🐛 [Submit Issue](https://github.com/hj01857655/kiro-account-manager/issues)
 - 💬 QQ Group: [1020204332](https://qm.qq.com/q/Vh7mUrNpa8)
 
+## ⭐ Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=hj01857655/kiro-account-manager&type=Date)](https://star-history.com/#hj01857655/kiro-account-manager&Date)
+
 ## ⚠️ Disclaimer
 
 This software is for learning and communication purposes only. Do not use for commercial purposes. Users are responsible for any consequences.
 
+## 📄 License
+
+[GPL-3.0](LICENSE) - Modifications must be open-sourced.
+
 ---
 
 <p align="center">Made with ❤️ by hj01857655</p>
+<p align="center">If this project helps you, please give it a ⭐!</p>

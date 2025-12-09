@@ -1,8 +1,13 @@
 # Kiro Account Manager
 
 <p align="center">
+  <img src="src-tauri/icons/128x128.png" alt="Logo" width="80">
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-blue" alt="Platform">
   <img src="https://img.shields.io/github/v/release/hj01857655/kiro-account-manager?label=Version&color=green" alt="Version">
+  <img src="https://img.shields.io/github/downloads/hj01857655/kiro-account-manager/total?color=brightgreen" alt="Downloads">
   <img src="https://img.shields.io/github/license/hj01857655/kiro-account-manager?color=orange" alt="License">
   <img src="https://img.shields.io/badge/QQ群-1020204332-12B7F5?logo=tencentqq" alt="QQ群">
 </p>
@@ -12,7 +17,7 @@
 </p>
 
 <p align="center">
-  <b>智能管理 Kiro 访问令牌，一键切换，配额监控</b>
+  <b>🚀 智能管理 Kiro IDE 账号，一键切换，配额监控</b>
 </p>
 
 ---
@@ -23,7 +28,7 @@
 - 🔐 **多账号管理** - 支持 Google、GitHub、BuilderId 等多种登录方式
 - 🎴 **卡片网格布局** - 直观展示账号状态、配额、订阅类型
 - 📊 **配额监控** - 实时查看账号配额使用情况（主配额/试用/奖励）
-- 🔄 **一键切换** - 快速切换 Kiro IDE 账号，可选自动重置机器 ID
+- 🔄 **一键切号** - 无感切换 Kiro IDE 账号，自动重置机器 ID
 - 📦 **批量操作** - 批量刷新、批量删除、批量导入导出
 - ⏰ **Token 自动刷新** - 定时刷新过期 Token，保持账号有效
 
