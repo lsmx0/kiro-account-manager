@@ -274,6 +274,7 @@ function App() {
       <GlobalLogin 
         onLoginSuccess={() => {
           setSyncLoggedIn(true)
+          setIsAdminUser(checkIsAdmin())
           startAutoRefreshTimer()
         }} 
       />
