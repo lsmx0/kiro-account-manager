@@ -79,6 +79,14 @@ pub struct OccupyRequest {
 pub struct OccupyResponse {
     pub success: bool,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub occupied_by: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct HeartbeatRequest {
+    #[serde(default)]
+    pub active_kiro_account_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

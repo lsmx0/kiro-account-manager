@@ -9,7 +9,7 @@ use std::sync::Arc;
 use crate::{
     error::AppResult,
     middleware::extract_claims,
-    models::{HeartbeatResponse, OccupancyInfo, OccupyRequest, OccupyResponse},
+    models::{HeartbeatRequest, HeartbeatResponse, OccupancyInfo, OccupyRequest, OccupyResponse},
     AppState,
 };
 
@@ -25,7 +25,7 @@ pub async fn occupy(
         .and_then(|v| v.to_str().ok());
     let claims = extract_claims(auth_header, &state.config.jwt_secret)?;
 
-    // 检查是否已被其他用户占用（120秒内活跃视为占用中）
+    // 严格检查：是否已被其他用户占用（120秒内活跃视为占用中）
     let threshold = Utc::now() - Duration::seconds(120);
 
     let existing: Option<(i64, String)> = sqlx::query_as(
@@ -43,14 +43,22 @@ pub async fn occupy(
 
     if let Some((user_id, username)) = existing {
         if user_id != claims.sub {
+            // 被其他用户占用，返回 409
             return Ok(Json(OccupyResponse {
                 success: false,
-                message: format!("账号正在被 {} 使用中，请稍后再试", username),
+                message: format!("该账号正被 {} 使用中", username),
+                occupied_by: Some(username),
             }));
         }
     }
 
-    // Upsert 占用记录
+    // 清理当前用户的旧会话（确保一人同一时间只能占一个号）
+    sqlx::query("DELETE FROM account_sessions WHERE user_id = ?")
+        .bind(claims.sub)
+        .execute(&state.db)
+        .await?;
+
+    // 插入新的占用记录
     sqlx::query(
         r#"
         INSERT INTO account_sessions (kiro_account_id, user_id, last_active)
@@ -63,9 +71,12 @@ pub async fn occupy(
     .execute(&state.db)
     .await?;
 
+    tracing::info!("用户 {} 占用了账号 {}", claims.username, req.kiro_account_id);
+
     Ok(Json(OccupyResponse {
         success: true,
         message: "占用成功".into(),
+        occupied_by: None,
     }))
 }
 
@@ -73,6 +84,7 @@ pub async fn occupy(
 pub async fn heartbeat(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
+    Json(req): Json<HeartbeatRequest>,
 ) -> AppResult<Json<HeartbeatResponse>> {
     // 验证 JWT
     let auth_header = headers
@@ -107,20 +119,25 @@ pub async fn heartbeat(
         seconds
     };
 
-    // 续期当前用户的所有占用锁
-    sqlx::query("UPDATE account_sessions SET last_active = NOW() WHERE user_id = ?")
+    // 续期指定账号的占用锁（如果提供了 active_kiro_account_id）
+    if let Some(ref account_id) = req.active_kiro_account_id {
+        sqlx::query(
+            "UPDATE account_sessions SET last_active = NOW() WHERE kiro_account_id = ? AND user_id = ?"
+        )
+        .bind(account_id)
         .bind(claims.sub)
         .execute(&state.db)
         .await?;
+    }
 
-    // 清理死锁（超过 120 秒未活跃的会话）
+    // 清理僵尸会话（超过 120 秒未活跃的会话）
     let threshold = Utc::now() - Duration::seconds(120);
     sqlx::query("DELETE FROM account_sessions WHERE last_active < ?")
         .bind(threshold)
         .execute(&state.db)
         .await?;
 
-    // 获取当前占用情况
+    // 获取全量占用状态
     let occupancy: Vec<OccupancyInfo> = sqlx::query_as(
         r#"
         SELECT s.kiro_account_id, s.user_id, u.username
