@@ -24,7 +24,7 @@ function CreateUserModal({ onClose, onSubmit }) {
         username,
         password,
         role,
-        remaining_days: role === 'admin' ? 999999 : remainingDays,
+        remaining_days: role === 'admin' ? 3650 : remainingDays, // 管理员约10年
       })
     } catch (err) {
       setError(err.message)

@@ -21,7 +21,7 @@ function EditUserModal({ user, onClose, onSubmit }) {
     try {
       const data = {
         role,
-        remaining_days: role === 'admin' ? 999999 : remainingDays,
+        remaining_days: role === 'admin' ? 3650 : remainingDays, // 管理员约10年
       }
       // 只有填写了密码才更新
       if (password) {
