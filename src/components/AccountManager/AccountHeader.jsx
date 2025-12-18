@@ -10,8 +10,8 @@ function AccountHeader({
   onAdd,
   onImport,
   onExport,
-  onRefreshAll,
-  autoRefreshing,
+  onRefreshAndSync,
+  isRefreshing,
   lastRefreshTime,
   refreshProgress,
 }) {
@@ -38,7 +38,7 @@ function AccountHeader({
 
         </div>
         <div className="flex items-center gap-3 animate-fade-in delay-400">
-          {lastRefreshTime && !autoRefreshing && (
+          {lastRefreshTime && !isRefreshing && (
             <span className={`text-xs ${colors.textMuted}`}>{lastRefreshTime}</span>
           )}
           <div className="relative group">
@@ -82,16 +82,19 @@ function AccountHeader({
             <span className={`text-sm ${colors.textMuted}`}>{t('accounts.export')}</span>
           </button>
           <button 
-            onClick={onRefreshAll} 
-            disabled={autoRefreshing} 
-            className={`btn-icon p-2 ${colors.card} border ${colors.cardBorder} rounded-xl ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'} disabled:opacity-50 transition-all`} 
-            title={t('accounts.refreshAll')}
+            onClick={onRefreshAndSync} 
+            disabled={isRefreshing} 
+            className={`btn-icon px-3 py-2 ${colors.card} border ${colors.cardBorder} rounded-xl ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'} disabled:opacity-50 transition-all flex items-center gap-1.5`} 
+            title="刷新并同步到云端"
           >
-            <RefreshCw size={18} className={`${colors.textMuted} ${autoRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw size={16} className={`${isRefreshing ? 'animate-spin text-blue-500' : colors.textMuted}`} />
+            <span className={`text-sm ${isRefreshing ? 'text-blue-500' : colors.textMuted}`}>
+              {isRefreshing ? '同步中...' : '刷新同步'}
+            </span>
           </button>
         </div>
       </div>
-      {autoRefreshing && refreshProgress.total > 0 && (
+      {isRefreshing && refreshProgress.total > 0 && (
         <div className="mt-3 flex items-center gap-3 animate-fade-in">
           <div className={`flex-1 h-1.5 ${isDark ? 'bg-white/10' : 'bg-gray-200'} rounded-full overflow-hidden`}>
             <div 

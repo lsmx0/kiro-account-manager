@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Kiro Account Manager",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "identifier": "com.kiro.account-manager",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -39,11 +39,17 @@
       "desktop": {
         "schemes": ["kiro"]
       }
+    },
+    "updater": {
+      "endpoints": [
+        "https://github.com/lsmx0/kiro-account-manager/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJDRjA3NkQ5NUU3QTQ0RTMKUldUalJIcGUyWGJ3TEhFYmsyUWtsM2RhWDBBc0c2UzFrTm5yQmQzeHAwNEtUN2Y2NEhXN2NHK0YK"
     }
   },
   "bundle": {
     "active": true,
-    "createUpdaterArtifacts": true,
+    "createUpdaterArtifacts": "v2Compatible",
     "category": "DeveloperTool",
     "copyright": "© 2025 hj01857655",
     "icon": [
@@ -67,13 +73,5 @@
     },
     "shortDescription": "Kiro 账号管理工具",
     "longDescription": "管理 Kiro IDE 账号，支持多账号切换和配额监控"
-  },
-  "plugins": {
-    "updater": {
-      "endpoints": [
-        "https://github.com/hj01857655/kiro-account-manager/releases/latest/download/latest.json"
-      ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVGOUFCNTE3RkIwREY5QTcKUldTbitRMzdGN1dhWDhaWi95UGxLSTkrNXZPTEZsWnd1bUtIS3dSOHlLb2Y1SWNBWVUxK3FjK2QK"
-    }
   }
 }

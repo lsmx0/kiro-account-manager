@@ -4,12 +4,15 @@ mod auth;
 mod auth_social;
 mod aws_sso_client;
 mod browser;
+mod bt_mail;
+// mod cloud_sync; // 已迁移到前端实现
 mod codewhisperer_client;
 mod commands;
 mod deep_link_handler;
 
 mod kiro;
 mod kiro_auth_client;
+mod mail_db;
 mod mcp;
 mod powers;
 mod process;
@@ -42,6 +45,8 @@ use commands::sso_import_cmd::*;
 use commands::update_cmd::*;
 use commands::web_oauth_cmd::*;
 use commands::steering_cmd::*;
+use commands::mail_cmd::*;
+// use commands::cloud_sync_cmd::*; // 已迁移到前端实现
 use kiro::{
     get_kiro_local_token, get_kiro_telemetry_info, reset_kiro_machine_id, switch_kiro_account,
 };
@@ -53,6 +58,7 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_deep_link::init())
@@ -84,6 +90,8 @@ fn main() {
             auth: AuthState::new(),
             pending_login: Mutex::new(None),
         })
+        .manage(commands::mail_cmd::MailState::new().expect("邮局数据库初始化失败"))
+        // .manage(commands::cloud_sync_cmd::CloudSyncState::new().expect("云端同步初始化失败")) // 已迁移到前端
         .invoke_handler(tauri::generate_handler![
             // 账号命令
             get_accounts,
@@ -165,7 +173,17 @@ fn main() {
             get_steering_file,
             save_steering_file,
             delete_steering_file,
-            create_steering_file
+            create_steering_file,
+            // 宝塔邮局管理命令
+            mail_create_users,
+            mail_delete_user,
+            mail_query_users,
+            mail_get_all_users,
+            mail_get_non_kiro_users,
+            mail_get_kiro_users,
+            mail_get_user_by_id,
+            mail_get_user_by_email,
+            // 云端同步命令已迁移到前端实现
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

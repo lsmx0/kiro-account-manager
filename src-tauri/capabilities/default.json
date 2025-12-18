@@ -18,6 +18,12 @@
     "updater:default",
     "dialog:default",
     "fs:default",
-    "fs:allow-write-text-file"
+    "fs:allow-write-text-file",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "http://47.86.24.6:8899/**" }
+      ]
+    }
   ]
 }

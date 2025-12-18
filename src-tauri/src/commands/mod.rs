@@ -3,9 +3,11 @@
 pub mod account_cmd;
 pub mod app_settings_cmd;
 pub mod auth_cmd;
+// pub mod cloud_sync_cmd; // 已迁移到前端实现
 
 pub mod kiro_settings_cmd;
 pub mod machine_guid_cmd;
+pub mod mail_cmd;
 pub mod mcp_cmd;
 pub mod powers_cmd;
 pub mod proxy_cmd;

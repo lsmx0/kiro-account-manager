@@ -34,6 +34,9 @@ function AccountManager() {
   // 当前登录的本地 token
   const [localToken, setLocalToken] = useState(null)
   
+  // 刷新同步状态
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  
   useEffect(() => {
     invoke('get_kiro_local_token').then(setLocalToken).catch(() => setLocalToken(null))
   }, [])
@@ -51,6 +54,45 @@ function AccountManager() {
     handleRefreshStatus,
     handleExport,
   } = useAccounts()
+
+  // 刷新并同步到云端（使用新的前端同步服务）
+  const handleRefreshAndSync = useCallback(async () => {
+    setIsRefreshing(true)
+    try {
+      // 1. 先刷新所有账号
+      await autoRefreshAll(accounts, true)
+      
+      // 2. 使用新的前端同步服务
+      const { performSync } = await import('../../services/syncService')
+      const result = await performSync()
+      
+      if (result.success) {
+        setSwitchDialog({
+          type: 'success',
+          title: '刷新同步完成',
+          message: result.merged ? '检测到冲突，已自动合并云端变更' : result.message,
+          account: null,
+        })
+      } else {
+        setSwitchDialog({
+          type: 'error',
+          title: '同步失败',
+          message: result.error || result.message,
+          account: null,
+        })
+      }
+      loadAccounts()
+    } catch (e) {
+      setSwitchDialog({
+        type: 'error',
+        title: '同步失败',
+        message: String(e),
+        account: null,
+      })
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [accounts, autoRefreshAll, loadAccounts])
 
   const filteredAccounts = useMemo(() =>
     accounts.filter(a =>
@@ -209,8 +251,8 @@ function AccountManager() {
         onAdd={() => setShowAddModal(true)}
         onImport={() => setShowImportModal(true)}
         onExport={() => handleExport(selectedIds)}
-        onRefreshAll={() => autoRefreshAll(accounts, true)}
-        autoRefreshing={autoRefreshing}
+        onRefreshAndSync={handleRefreshAndSync}
+        isRefreshing={isRefreshing || autoRefreshing}
         lastRefreshTime={lastRefreshTime}
         refreshProgress={refreshProgress}
       />
@@ -253,7 +295,7 @@ function AccountManager() {
       {showAddModal && (<AddAccountModal onClose={() => setShowAddModal(false)} onSuccess={loadAccounts} />)}
       {editingLabelAccount && (<EditAccountModal account={editingLabelAccount} onClose={() => setEditingLabelAccount(null)} onSuccess={loadAccounts} />)}
       {showImportModal && (<ImportAccountModal onClose={() => setShowImportModal(false)} onSuccess={loadAccounts} />)}
-      {autoRefreshing && (<RefreshProgressModal refreshProgress={refreshProgress} />)}
+      {(isRefreshing || autoRefreshing) && (<RefreshProgressModal refreshProgress={refreshProgress} />)}
       
       {/* 切换账号弹窗 */}
       {switchDialog && (

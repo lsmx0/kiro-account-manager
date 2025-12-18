@@ -4,18 +4,16 @@ import { listen } from '@tauri-apps/api/event'
 import Sidebar from './components/Sidebar'
 import Home from './components/Home'
 import AccountManager from './components/AccountManager/index'
+import MailManager from './components/MailManager/index'
 import Settings from './components/Settings'
 import KiroConfig from './components/KiroConfig/index'
 import About from './components/About'
 import Login from './components/Login'
 import WebOAuthLogin from './components/WebOAuthLogin'
 import AuthCallback from './components/AuthCallback'
-import UpdateChecker from './components/UpdateChecker'
+// import UpdateChecker from './components/UpdateChecker'
 
 import { useTheme } from './contexts/ThemeContext'
-
-// 默认自动刷新间隔：50分钟
-const DEFAULT_REFRESH_INTERVAL = 50 * 60 * 1000
 
 function App() {
   const [user, setUser] = useState(null)
@@ -113,11 +111,57 @@ function App() {
     }
   }
 
+  // 首次启动：自动保存本地 Kiro 账号并同步
+  const autoSaveAndSync = async () => {
+    try {
+      // 检查是否有本地 Kiro 账号
+      const localToken = await invoke('get_kiro_local_token').catch(() => null)
+      if (!localToken) {
+        console.log('[AutoSync] 未检测到本地 Kiro 账号')
+        return
+      }
+      
+      // 检查该账号是否已存在
+      const accounts = await invoke('get_accounts').catch(() => [])
+      const exists = accounts.some(acc => 
+        acc.refreshToken === localToken.refreshToken ||
+        acc.accessToken === localToken.accessToken
+      )
+      
+      if (!exists) {
+        // 自动添加本地账号
+        console.log('[AutoSync] 自动保存本地 Kiro 账号...')
+        await invoke('add_local_kiro_account').catch(e => {
+          console.warn('[AutoSync] 保存本地账号失败:', e)
+        })
+      }
+      
+      // 使用新的前端同步服务执行云端同步
+      console.log('[AutoSync] 执行云端同步...')
+      try {
+        const { performSync } = await import('./services/syncService')
+        const result = await performSync()
+        if (result.success) {
+          console.log('[AutoSync] 同步完成:', result.message)
+        } else {
+          console.warn('[AutoSync] 云端同步失败:', result.error || result.message)
+        }
+      } catch (e) {
+        console.warn('[AutoSync] 云端同步失败:', e)
+      }
+    } catch (e) {
+      console.error('[AutoSync] 自动同步失败:', e)
+    }
+  }
+
   // 启动自动刷新定时器
   const startAutoRefreshTimer = async () => {
     if (refreshTimerRef.current) {
       clearInterval(refreshTimerRef.current)
     }
+    
+    // 首次启动：自动保存本地账号并同步
+    await autoSaveAndSync()
     
     // 启动时只刷新 token（快速启动）
     refreshExpiredTokensOnly()
@@ -192,6 +236,7 @@ function App() {
     switch (activeMenu) {
       case 'home': return <Home onNavigate={setActiveMenu} />
       case 'token': return <AccountManager />
+      case 'mail-manager': return <MailManager />
       case 'kiro-config': return <KiroConfig />
       case 'login': return <Login onLogin={(user) => { handleLogin(user); setActiveMenu('token'); }} />
       case 'web-oauth': return <WebOAuthLogin onLogin={(user) => { handleLogin(user); setActiveMenu('token'); }} />
@@ -222,7 +267,7 @@ function App() {
         {renderContent()}
       </main>
       
-      <UpdateChecker />
+      {/* <UpdateChecker /> */}
     </div>
   )
 }
