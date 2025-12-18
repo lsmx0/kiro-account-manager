@@ -30,3 +30,6 @@ docs/
 
 docs/
 scripts/
+
+# Tauri signing keys
+~/.tauri/
