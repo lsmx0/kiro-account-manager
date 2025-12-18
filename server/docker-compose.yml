@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  kiro-sync-server:
+    build: .
+    ports:
+      - "8899:8899"
+    environment:
+      - DATABASE_URL=mysql://root:lsmx050320@47.86.24.6:3306/account
+      - JWT_SECRET=xq7JpzqZ1OCYPj5nAnMJtuwshoC8gqHi
+      - JWT_EXPIRY_HOURS=24
+      - PORT=8899
+      - RUST_LOG=info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8899/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
