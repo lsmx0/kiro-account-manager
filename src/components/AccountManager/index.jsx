@@ -1,9 +1,11 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useDialog } from '../../contexts/DialogContext'
 import { useI18n } from '../../i18n'
 import { useAccounts } from './hooks/useAccounts'
+import { occupyAccount, sendHeartbeat, toOccupancyRecord, getCurrentUsername } from '../../services/occupyService'
+import { isLoggedIn } from '../../services/authService'
 import AccountHeader from './AccountHeader'
 import AccountTable from './AccountTable'
 import AccountPagination from './AccountPagination'
@@ -37,9 +39,11 @@ function AccountManager() {
   // 刷新同步状态
   const [isRefreshing, setIsRefreshing] = useState(false)
   
-  useEffect(() => {
-    invoke('get_kiro_local_token').then(setLocalToken).catch(() => setLocalToken(null))
-  }, [])
+  // 占用状态 Map: { kiro_account_id: username }
+  const [occupancyMap, setOccupancyMap] = useState({})
+  const [activeAccountId, setActiveAccountId] = useState(null)
+  const heartbeatRef = useRef(null)
+  const currentUsername = getCurrentUsername()
 
   const {
     accounts,
@@ -54,45 +58,142 @@ function AccountManager() {
     handleRefreshStatus,
     handleExport,
   } = useAccounts()
+  
+  useEffect(() => {
+    invoke('get_kiro_local_token').then(setLocalToken).catch(() => setLocalToken(null))
+  }, [])
 
-  // 刷新并同步到云端（使用新的前端同步服务）
-  const handleRefreshAndSync = useCallback(async () => {
+  // 启动时自动占用当前正在使用的账号
+  useEffect(() => {
+    if (!isLoggedIn() || !localToken?.refreshToken || accounts.length === 0) return
+
+    const currentAccount = accounts.find(acc => acc.refreshToken === localToken.refreshToken)
+    if (currentAccount && !activeAccountId) {
+      console.log('[AutoOccupy] 检测到当前使用账号:', currentAccount.email)
+      // 自动占用当前账号
+      occupyAccount(currentAccount.id)
+        .then(result => {
+          if (result.success) {
+            console.log('[AutoOccupy] 自动占用成功')
+            setActiveAccountId(currentAccount.id)
+          }
+        })
+        .catch(e => console.warn('[AutoOccupy] 自动占用失败:', e))
+    }
+  }, [localToken, accounts, activeAccountId])
+
+  // 心跳定时器：每 60 秒发送一次
+  useEffect(() => {
+    if (!isLoggedIn()) return
+
+    const doHeartbeat = async () => {
+      try {
+        console.log('[Heartbeat] 发送心跳请求...')
+        const result = await sendHeartbeat(activeAccountId)
+        console.log('[Heartbeat] 响应:', result)
+        const map = toOccupancyRecord(result.occupancy_map)
+        console.log('[Heartbeat] 占用状态:', map)
+        setOccupancyMap(map)
+        
+        // 如果时长耗尽，可以在这里处理
+        if (result.status === 'expired') {
+          console.warn('[Heartbeat] 用户时长已耗尽')
+        }
+      } catch (e) {
+        console.error('[Heartbeat] 心跳失败:', e)
+      }
+    }
+
+    // 立即执行一次
+    doHeartbeat()
+
+    // 每 60 秒执行一次
+    heartbeatRef.current = setInterval(doHeartbeat, 60000)
+
+    return () => {
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current)
+      }
+    }
+  }, [activeAccountId])
+
+  // 状态文本
+  const [statusText, setStatusText] = useState('')
+
+  // 同步刷新（合并流程：拉取→刷新→上传）
+  const handleSyncAndRefresh = useCallback(async () => {
     setIsRefreshing(true)
     try {
-      // 1. 先刷新所有账号
-      await autoRefreshAll(accounts, true)
+      const { pullFromCloud, performSync } = await import('../../services/syncService')
       
-      // 2. 使用新的前端同步服务
-      const { performSync } = await import('../../services/syncService')
-      const result = await performSync()
+      // Step 1: 拉取云端数据
+      setStatusText('拉取云端...')
+      try {
+        const pullResult = await pullFromCloud()
+        if (pullResult.success) {
+          await loadAccounts()
+        } else {
+          console.warn('[SyncRefresh] 拉取云端失败:', pullResult.error)
+        }
+      } catch (pullErr) {
+        console.warn('[SyncRefresh] 拉取云端异常:', pullErr)
+      }
       
-      if (result.success) {
-        setSwitchDialog({
-          type: 'success',
-          title: '刷新同步完成',
-          message: result.merged ? '检测到冲突，已自动合并云端变更' : result.message,
-          account: null,
-        })
-      } else {
+      // Step 2: 刷新所有账号 Token
+      setStatusText('刷新账号...')
+      try {
+        const currentAccounts = await invoke('get_accounts')
+        if (currentAccounts && currentAccounts.length > 0) {
+          await autoRefreshAll(currentAccounts, true)
+        }
+      } catch (refreshErr) {
+        console.warn('[SyncRefresh] 刷新账号异常:', refreshErr)
+      }
+      
+      // Step 3: 上传到云端
+      setStatusText('上传云端...')
+      try {
+        const syncResult = await performSync()
+        
+        if (syncResult.success) {
+          setSwitchDialog({
+            type: 'success',
+            title: '同步刷新完成',
+            message: syncResult.merged ? '检测到冲突，已自动合并' : '数据已同步到云端',
+            account: null,
+          })
+        } else {
+          setSwitchDialog({
+            type: 'error',
+            title: '上传失败',
+            message: syncResult.error || syncResult.message,
+            account: null,
+          })
+        }
+      } catch (syncErr) {
+        console.error('[SyncRefresh] 上传云端异常:', syncErr)
         setSwitchDialog({
           type: 'error',
-          title: '同步失败',
-          message: result.error || result.message,
+          title: '上传失败',
+          message: String(syncErr),
           account: null,
         })
       }
-      loadAccounts()
+      
+      await loadAccounts()
     } catch (e) {
+      console.error('[SyncRefresh] 整体异常:', e)
       setSwitchDialog({
         type: 'error',
-        title: '同步失败',
+        title: '同步刷新失败',
         message: String(e),
         account: null,
       })
     } finally {
       setIsRefreshing(false)
+      setStatusText('')
     }
-  }, [accounts, autoRefreshAll, loadAccounts])
+  }, [autoRefreshAll, loadAccounts])
 
   const filteredAccounts = useMemo(() =>
     accounts.filter(a =>
@@ -157,7 +258,33 @@ function AccountManager() {
     setSwitchingId(account.id)
     
     try {
-      // 读取设置，判断是否自动更换机器码
+      // Step 1: 先尝试占用账号（防抢号）
+      if (isLoggedIn()) {
+        try {
+          const occupyResult = await occupyAccount(account.id)
+          if (!occupyResult.success) {
+            // 被其他用户占用
+            setSwitchDialog({
+              type: 'error',
+              title: '账号被占用',
+              message: `手慢了！${occupyResult.message}`,
+              account: null,
+            })
+            setSwitchingId(null)
+            // 刷新占用状态
+            const heartbeatResult = await sendHeartbeat()
+            setOccupancyMap(toOccupancyRecord(heartbeatResult.occupancy_map))
+            return
+          }
+          // 占用成功，更新当前活跃账号
+          setActiveAccountId(account.id)
+        } catch (occupyErr) {
+          console.warn('[Occupy] 占用请求失败:', occupyErr)
+          // 占用失败不阻止切换，继续执行
+        }
+      }
+
+      // Step 2: 读取设置，判断是否自动更换机器码
       const appSettings = await invoke('get_app_settings').catch(() => ({}))
       const autoChangeMachineId = appSettings.autoChangeMachineId ?? false
       const bindMachineIdToAccount = appSettings.bindMachineIdToAccount ?? false
@@ -251,10 +378,11 @@ function AccountManager() {
         onAdd={() => setShowAddModal(true)}
         onImport={() => setShowImportModal(true)}
         onExport={() => handleExport(selectedIds)}
-        onRefreshAndSync={handleRefreshAndSync}
-        isRefreshing={isRefreshing || autoRefreshing}
+        onSyncAndRefresh={handleSyncAndRefresh}
+        isProcessing={isRefreshing || autoRefreshing}
         lastRefreshTime={lastRefreshTime}
         refreshProgress={refreshProgress}
+        statusText={statusText}
       />
       <div className="flex-1 overflow-auto">
       <AccountTable
@@ -274,6 +402,8 @@ function AccountManager() {
         refreshingId={refreshingId}
         switchingId={switchingId}
         localToken={localToken}
+        occupancyMap={occupancyMap}
+        currentUsername={currentUsername}
       />
       </div>
       <div className="animate-slide-in-right delay-200">
@@ -295,7 +425,7 @@ function AccountManager() {
       {showAddModal && (<AddAccountModal onClose={() => setShowAddModal(false)} onSuccess={loadAccounts} />)}
       {editingLabelAccount && (<EditAccountModal account={editingLabelAccount} onClose={() => setEditingLabelAccount(null)} onSuccess={loadAccounts} />)}
       {showImportModal && (<ImportAccountModal onClose={() => setShowImportModal(false)} onSuccess={loadAccounts} />)}
-      {(isRefreshing || autoRefreshing) && (<RefreshProgressModal refreshProgress={refreshProgress} />)}
+      {(isRefreshing || autoRefreshing) && (<RefreshProgressModal refreshProgress={refreshProgress} statusText={statusText} />)}
       
       {/* 切换账号弹窗 */}
       {switchDialog && (

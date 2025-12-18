@@ -20,6 +20,8 @@ function AccountTable({
   refreshingId,
   switchingId,
   localToken,
+  occupancyMap = {},
+  currentUsername = null,
 }) {
   const { theme, colors } = useTheme()
   const { t } = useI18n()
@@ -71,6 +73,8 @@ function AccountTable({
               refreshingId={refreshingId}
               switchingId={switchingId}
               isCurrentAccount={localToken?.refreshToken && account.refreshToken === localToken.refreshToken}
+              occupiedBy={occupancyMap[account.id]}
+              currentUsername={currentUsername}
             />
           ))}
           {/* 添加账号卡片 */}

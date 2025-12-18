@@ -1,6 +1,7 @@
-import { Search, Download, Upload, RefreshCw, Trash2, Plus, Sparkles } from 'lucide-react'
+import { Search, Download, Upload, RefreshCw, Trash2, Plus, Sparkles, Cloud } from 'lucide-react'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useI18n } from '../../i18n.jsx'
+import { isAdmin, getStoredUser } from '../../services/authService'
 
 function AccountHeader({
   searchTerm,
@@ -10,14 +11,17 @@ function AccountHeader({
   onAdd,
   onImport,
   onExport,
-  onRefreshAndSync,
-  isRefreshing,
+  onSyncAndRefresh,
+  isProcessing,
   lastRefreshTime,
   refreshProgress,
+  statusText,
 }) {
   const { theme, colors } = useTheme()
   const { t } = useI18n()
   const isDark = theme === 'dark'
+  const userIsAdmin = isAdmin()
+  const currentUser = getStoredUser()
 
   return (
     <div className={`${colors.card} border-b ${colors.cardBorder} px-6 py-4 relative overflow-hidden`}>
@@ -38,7 +42,7 @@ function AccountHeader({
 
         </div>
         <div className="flex items-center gap-3 animate-fade-in delay-400">
-          {lastRefreshTime && !isRefreshing && (
+          {lastRefreshTime && !isProcessing && (
             <span className={`text-xs ${colors.textMuted}`}>{lastRefreshTime}</span>
           )}
           <div className="relative group">
@@ -73,28 +77,41 @@ function AccountHeader({
             <Upload size={16} className={colors.textMuted} />
             <span className={`text-sm ${colors.textMuted}`}>{t('accounts.import')}</span>
           </button>
+          {/* 导出按钮 - 仅管理员可见 */}
+          {userIsAdmin && (
+            <button 
+              onClick={onExport} 
+              className={`btn-icon px-3 py-2 ${colors.card} border ${colors.cardBorder} rounded-xl ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'} transition-all flex items-center gap-1.5`} 
+              title={t('accounts.export')}
+            >
+              <Download size={16} className={colors.textMuted} />
+              <span className={`text-sm ${colors.textMuted}`}>{t('accounts.export')}</span>
+            </button>
+          )}
+          {/* 同步刷新按钮（合并：拉取→刷新→上传） */}
           <button 
-            onClick={onExport} 
-            className={`btn-icon px-3 py-2 ${colors.card} border ${colors.cardBorder} rounded-xl ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'} transition-all flex items-center gap-1.5`} 
-            title={t('accounts.export')}
+            onClick={onSyncAndRefresh} 
+            disabled={isProcessing} 
+            className={`btn-icon px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl text-sm font-medium hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 transition-all flex items-center gap-1.5 shadow-lg shadow-green-500/25`} 
+            title="同步云端数据并刷新账号状态"
           >
-            <Download size={16} className={colors.textMuted} />
-            <span className={`text-sm ${colors.textMuted}`}>{t('accounts.export')}</span>
+            {isProcessing ? (
+              <RefreshCw size={16} className="animate-spin" />
+            ) : (
+              <Cloud size={16} />
+            )}
+            <span>{isProcessing ? (statusText || '处理中...') : '同步刷新'}</span>
           </button>
-          <button 
-            onClick={onRefreshAndSync} 
-            disabled={isRefreshing} 
-            className={`btn-icon px-3 py-2 ${colors.card} border ${colors.cardBorder} rounded-xl ${isDark ? 'hover:bg-white/5' : 'hover:bg-gray-50'} disabled:opacity-50 transition-all flex items-center gap-1.5`} 
-            title="刷新并同步到云端"
-          >
-            <RefreshCw size={16} className={`${isRefreshing ? 'animate-spin text-blue-500' : colors.textMuted}`} />
-            <span className={`text-sm ${isRefreshing ? 'text-blue-500' : colors.textMuted}`}>
-              {isRefreshing ? '同步中...' : '刷新同步'}
-            </span>
-          </button>
+          {/* 当前用户信息 */}
+          {currentUser && (
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg ${isDark ? 'bg-white/5' : 'bg-gray-100'} text-xs ${colors.textMuted}`}>
+              <span>{currentUser.username}</span>
+              {currentUser.role === 'admin' && <span className="text-yellow-400">管理员</span>}
+            </div>
+          )}
         </div>
       </div>
-      {isRefreshing && refreshProgress.total > 0 && (
+      {isProcessing && refreshProgress.total > 0 && (
         <div className="mt-3 flex items-center gap-3 animate-fade-in">
           <div className={`flex-1 h-1.5 ${isDark ? 'bg-white/10' : 'bg-gray-200'} rounded-full overflow-hidden`}>
             <div 

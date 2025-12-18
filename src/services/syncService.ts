@@ -3,10 +3,10 @@
 import { invoke } from '@tauri-apps/api/core';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import type { Account, SyncGetResponse, SyncState } from './types';
+import { getAuthHeaders, isLoggedIn, isAdmin } from './authService';
 
 // 同步 API 配置
 const SYNC_API_BASE = 'http://47.86.24.6:8899';
-const SYNC_KEY = 'xq7JpzqZ1OCYPj5nAnMJtuwshoC8gqHi'; // API 鉴权密钥
 const ENCRYPTION_KEY = 'xq7JpzqZ1OCYPj5nAnMJtuwshoC8gqHi'; // 加密密钥
 
 // localStorage 键名
@@ -97,19 +97,21 @@ export function mergeAccounts(localAccounts: Account[], remoteAccounts: Account[
   return Array.from(merged.values());
 }
 
-// ==================== API 调用 (使用 Tauri HTTP 插件) ====================
-
-// 通用请求头（包含鉴权）
-const getHeaders = () => ({
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${SYNC_KEY}`,
-});
+// ==================== API 调用 (使用 Tauri HTTP 插件 + JWT 认证) ====================
 
 async function fetchFromCloud(): Promise<SyncGetResponse> {
-  const response = await tauriFetch(`${SYNC_API_BASE}/sync`, {
+  if (!isLoggedIn()) {
+    throw new Error('请先登录');
+  }
+
+  const response = await tauriFetch(`${SYNC_API_BASE}/api/sync`, {
     method: 'GET',
-    headers: getHeaders(),
+    headers: getAuthHeaders(),
   });
+
+  if (response.status === 401) {
+    throw new Error('登录已过期，请重新登录');
+  }
 
   if (!response.ok) {
     throw new Error(`获取云端数据失败: ${response.status}`);
@@ -127,11 +129,19 @@ async function pushToCloud(
   conflict?: boolean;
   serverVersion?: number;
 }> {
-  const response = await tauriFetch(`${SYNC_API_BASE}/sync`, {
+  if (!isLoggedIn()) {
+    throw new Error('请先登录');
+  }
+
+  const response = await tauriFetch(`${SYNC_API_BASE}/api/sync`, {
     method: 'POST',
-    headers: getHeaders(),
+    headers: getAuthHeaders(),
     body: JSON.stringify({ data, basedOnVersion }),
   });
+
+  if (response.status === 401) {
+    throw new Error('登录已过期，请重新登录');
+  }
 
   if (response.status === 200) {
     const result = await response.json();

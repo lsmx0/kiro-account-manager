@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import { Cloud, Upload, Download, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { performSync, pullFromCloud, getSyncState, getLastSyncedAt } from '../services/syncService';
+import { isLoggedIn, isAdmin } from '../services/authService';
+import SyncLogin from './SyncLogin';
 import type { SyncStatus } from '../services/types';
 
 interface SyncControlProps {
@@ -16,11 +18,19 @@ export default function SyncControl({ onSyncComplete, isDark = true }: SyncContr
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
+  const [, forceUpdate] = useState(0);
+
+  const loggedIn = isLoggedIn();
+  const admin = isAdmin();
 
   useEffect(() => {
     const state = getSyncState();
     setLastSyncTime(state.lastSyncedAt);
   }, []);
+
+  const handleLoginChange = () => {
+    forceUpdate((n) => n + 1);
+  };
 
   const showNotification = (message: string, type: 'success' | 'error') => {
     setToastMessage(message);
@@ -113,35 +123,42 @@ export default function SyncControl({ onSyncComplete, isDark = true }: SyncContr
   return (
     <>
       <div className="flex items-center gap-2">
-        {/* 状态显示 */}
-        <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg ${bgColor} ${textColor} text-xs`}>
-          {getStatusIcon()}
-          <span>{getStatusText()}</span>
-          {lastSyncTime && status === 'synced' && (
-            <span className="opacity-60 ml-1">{formatTime(lastSyncTime)}</span>
-          )}
-        </div>
+        {/* 登录组件 */}
+        <SyncLogin onLoginSuccess={handleLoginChange} isDark={isDark} />
 
-        {/* 同步按钮 */}
-        <button
-          onClick={handleSync}
-          disabled={isLoading}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${borderColor} ${bgColor} ${textColor} text-sm transition-all disabled:opacity-50`}
-          title="上传并同步"
-        >
-          <Cloud size={16} className={isLoading ? 'animate-pulse' : ''} />
-          <span>同步</span>
-        </button>
+        {loggedIn && (
+          <>
+            {/* 状态显示 */}
+            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg ${bgColor} ${textColor} text-xs`}>
+              {getStatusIcon()}
+              <span>{getStatusText()}</span>
+              {lastSyncTime && status === 'synced' && (
+                <span className="opacity-60 ml-1">{formatTime(lastSyncTime)}</span>
+              )}
+            </div>
 
-        {/* 拉取按钮 */}
-        <button
-          onClick={handlePull}
-          disabled={isLoading}
-          className={`p-1.5 rounded-lg border ${borderColor} ${bgColor} transition-all disabled:opacity-50`}
-          title="从云端拉取"
-        >
-          <Download size={16} className={textColor} />
-        </button>
+            {/* 同步按钮（所有登录用户可用） */}
+            <button
+              onClick={handleSync}
+              disabled={isLoading}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border ${borderColor} ${bgColor} ${textColor} text-sm transition-all disabled:opacity-50`}
+              title="上传并同步"
+            >
+              <Cloud size={16} className={isLoading ? 'animate-pulse' : ''} />
+              <span>同步</span>
+            </button>
+
+            {/* 拉取按钮（所有登录用户可用） */}
+            <button
+              onClick={handlePull}
+              disabled={isLoading}
+              className={`p-1.5 rounded-lg border ${borderColor} ${bgColor} transition-all disabled:opacity-50`}
+              title="从云端拉取"
+            >
+              <Download size={16} className={textColor} />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Toast 通知 */}

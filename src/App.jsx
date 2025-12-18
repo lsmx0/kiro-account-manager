@@ -5,22 +5,34 @@ import Sidebar from './components/Sidebar'
 import Home from './components/Home'
 import AccountManager from './components/AccountManager/index'
 import MailManager from './components/MailManager/index'
+import UserManager from './components/UserManager/index'
 import Settings from './components/Settings'
 import KiroConfig from './components/KiroConfig/index'
 import About from './components/About'
 import Login from './components/Login'
 import WebOAuthLogin from './components/WebOAuthLogin'
 import AuthCallback from './components/AuthCallback'
+import GlobalLogin from './components/GlobalLogin'
 // import UpdateChecker from './components/UpdateChecker'
 
 import { useTheme } from './contexts/ThemeContext'
+import { isLoggedIn as checkSyncLogin, isAdmin as checkIsAdmin } from './services/authService'
 
 function App() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [activeMenu, setActiveMenu] = useState('home')
+  const [syncLoggedIn, setSyncLoggedIn] = useState(false)
   const { colors } = useTheme()
   const refreshTimerRef = useRef(null)
+
+  // 检查云端同步登录状态和管理员权限
+  const [isAdminUser, setIsAdminUser] = useState(false)
+  
+  useEffect(() => {
+    setSyncLoggedIn(checkSyncLogin())
+    setIsAdminUser(checkIsAdmin())
+  }, [])
 
   // 启动时只刷新 token（不获取 usage，快速启动）
   const refreshExpiredTokensOnly = async () => {
@@ -237,6 +249,7 @@ function App() {
       case 'home': return <Home onNavigate={setActiveMenu} />
       case 'token': return <AccountManager />
       case 'mail-manager': return <MailManager />
+      case 'user-manager': return <UserManager />
       case 'kiro-config': return <KiroConfig />
       case 'login': return <Login onLogin={(user) => { handleLogin(user); setActiveMenu('token'); }} />
       case 'web-oauth': return <WebOAuthLogin onLogin={(user) => { handleLogin(user); setActiveMenu('token'); }} />
@@ -255,6 +268,18 @@ function App() {
     )
   }
 
+  // 全局登录拦截：未登录云端同步时显示登录页
+  if (!syncLoggedIn) {
+    return (
+      <GlobalLogin 
+        onLoginSuccess={() => {
+          setSyncLoggedIn(true)
+          startAutoRefreshTimer()
+        }} 
+      />
+    )
+  }
+
   return (
     <div className={`flex h-screen ${colors.main}`}>
       <Sidebar 
@@ -262,6 +287,11 @@ function App() {
         onMenuChange={setActiveMenu}
         user={user}
         onLogout={handleLogout}
+        isAdmin={isAdminUser}
+        onSyncLogout={() => {
+          setSyncLoggedIn(false)
+          setIsAdminUser(false)
+        }}
       />
       <main className="flex-1 overflow-hidden">
         {renderContent()}

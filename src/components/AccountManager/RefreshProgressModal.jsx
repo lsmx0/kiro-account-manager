@@ -2,10 +2,22 @@ import { RefreshCw } from 'lucide-react'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useI18n } from '../../i18n.jsx'
 
-function RefreshProgressModal({ refreshProgress }) {
+function RefreshProgressModal({ refreshProgress, statusText }) {
   const { theme, colors } = useTheme()
   const { t } = useI18n()
   const isDark = theme === 'dark'
+
+  // 如果有 statusText 但没有 refreshProgress，显示简单的状态
+  if (statusText && (!refreshProgress || refreshProgress.total === 0)) {
+    return (
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+        <div className={`${colors.card} rounded-2xl px-8 py-6 shadow-2xl flex items-center gap-3`}>
+          <RefreshCw size={20} className="text-blue-500 animate-spin" />
+          <span className={colors.text}>{statusText}</span>
+        </div>
+      </div>
+    )
+  }
 
   if (!refreshProgress || refreshProgress.total === 0) return null
 

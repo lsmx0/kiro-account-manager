@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
-import { Home, Key, Settings, Info, User, LogIn, Globe, Sun, Moon, Palette, Settings2, Languages, Mail } from 'lucide-react'
+import { Home, Key, Settings, Info, User, LogIn, Globe, Sun, Moon, Palette, Settings2, Languages, Mail, Users, LogOut } from 'lucide-react'
+import { logout, getStoredUser } from '../services/authService'
 import { useTheme, themes } from '../contexts/ThemeContext'
 import { useI18n, locales } from '../i18n.jsx'
 
@@ -11,6 +12,7 @@ function useMenuItems() {
     { id: 'home', label: t('nav.home'), icon: Home },
     { id: 'token', label: t('nav.accounts'), icon: Key },
     { id: 'mail-manager', label: '邮局管理', icon: Mail, desc: '宝塔邮局账号' },
+    { id: 'user-manager', label: '用户管理', icon: Users, desc: '管理系统用户', adminOnly: true },
     { id: 'kiro-config', label: t('nav.kiroConfig'), icon: Settings2 },
     { id: 'login', label: t('nav.desktopOAuth'), icon: LogIn, desc: t('nav.socialIdC') },
     { id: 'web-oauth', label: t('nav.webOAuth'), icon: Globe, desc: t('nav.webviewLogin') },
@@ -19,7 +21,7 @@ function useMenuItems() {
   ]
 }
 
-function Sidebar({ activeMenu, onMenuChange }) {
+function Sidebar({ activeMenu, onMenuChange, isAdmin = false, onSyncLogout }) {
   const [localToken, setLocalToken] = useState(null)
   const [showThemeMenu, setShowThemeMenu] = useState(false)
   const [showLangMenu, setShowLangMenu] = useState(false)
@@ -27,6 +29,12 @@ function Sidebar({ activeMenu, onMenuChange }) {
   const { theme, setTheme, colors } = useTheme()
   const { locale, setLocale, loading: langLoading } = useI18n()
   const menuItems = useMenuItems()
+  const syncUser = getStoredUser()
+
+  const handleLogout = () => {
+    logout()
+    onSyncLogout?.()
+  }
 
   useEffect(() => {
     invoke('get_kiro_local_token').then(setLocalToken).catch(() => {})
@@ -55,7 +63,7 @@ function Sidebar({ activeMenu, onMenuChange }) {
 
       {/* Menu */}
       <nav className="flex-1 px-3 space-y-1">
-        {menuItems.map((item, index) => {
+        {menuItems.filter(item => !item.adminOnly || isAdmin).map((item, index) => {
           const Icon = item.icon
           const isActive = activeMenu === item.id
           return (
@@ -99,6 +107,34 @@ function Sidebar({ activeMenu, onMenuChange }) {
                 {localToken.expiresAt ? new Date(localToken.expiresAt).toLocaleTimeString() : ''}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 当前登录用户 */}
+      {syncUser && (
+        <div className={`mx-3 mb-3 ${colors.sidebarCard} rounded-xl p-3`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                syncUser.role === 'admin' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'
+              }`}>
+                <User size={14} />
+              </div>
+              <div>
+                <div className="text-xs font-medium">{syncUser.username}</div>
+                <div className={`text-xs ${colors.sidebarMuted}`}>
+                  {syncUser.role === 'admin' ? '管理员' : '用户'}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className={`p-1.5 rounded-lg hover:bg-red-500/20 text-red-400 transition-all`}
+              title="退出登录"
+            >
+              <LogOut size={14} />
+            </button>
           </div>
         </div>
       )}

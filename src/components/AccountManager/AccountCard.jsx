@@ -18,6 +18,8 @@ function AccountCard({
   refreshingId,
   switchingId,
   isCurrentAccount,
+  occupiedBy,
+  currentUsername,
 }) {
   const { theme, colors } = useTheme()
   const { t } = useI18n()
@@ -32,15 +34,23 @@ function AccountCard({
   const isExpired = account.expiresAt && new Date(account.expiresAt.replace(/\//g, '-')) < new Date()
   const isBanned = account.status === '封禁' || account.status === '已封禁'
   const isNormal = account.status === '正常' || account.status === '有效'
+  
+  // 占用状态判断
+  const isOccupiedByMe = occupiedBy && occupiedBy === currentUsername
+  const isOccupiedByOther = occupiedBy && occupiedBy !== currentUsername
 
   // 状态光环颜色
-  const glowColor = isCurrentAccount
-    ? 'shadow-green-500/30 hover:shadow-green-500/50'
-    : isBanned
-      ? 'shadow-red-500/30 hover:shadow-red-500/50'
-      : isNormal
-        ? ''
-        : 'shadow-orange-500/30 hover:shadow-orange-500/50'
+  const glowColor = isOccupiedByOther
+    ? 'shadow-gray-500/30 opacity-60'
+    : isOccupiedByMe
+      ? 'shadow-green-500/30 hover:shadow-green-500/50'
+      : isCurrentAccount
+        ? 'shadow-green-500/30 hover:shadow-green-500/50'
+        : isBanned
+          ? 'shadow-red-500/30 hover:shadow-red-500/50'
+          : isNormal
+            ? ''
+            : 'shadow-orange-500/30 hover:shadow-orange-500/50'
 
   return (
     <div className={`relative rounded-2xl border transition-all duration-200 hover:shadow-lg flex flex-col ${glowColor} ${
@@ -66,6 +76,18 @@ function AccountCard({
       
       {/* 状态标签 */}
       <div className="absolute top-3 right-3 flex items-center gap-2">
+        {/* 占用状态 */}
+        {isOccupiedByMe && (
+          <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-green-500/20 text-green-400">
+            🟢 正在使用
+          </span>
+        )}
+        {isOccupiedByOther && (
+          <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-gray-500/20 text-gray-400">
+            🔒 {occupiedBy}
+          </span>
+        )}
+        {/* 账号状态 */}
         <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
           account.status === '正常' || account.status === '有效'
             ? (isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700')
@@ -159,11 +181,11 @@ function AccountCard({
         <div className="flex items-center justify-center gap-2 pt-2 mt-auto border-t border-gray-200 dark:border-gray-700">
           <button 
             onClick={() => onSwitch(account)} 
-            disabled={switchingId === account.id} 
-            className={`p-2 rounded-lg transition-all ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} disabled:opacity-50`}
-            title={t('accountCard.switchAccount')}
+            disabled={switchingId === account.id || isOccupiedByOther} 
+            className={`p-2 rounded-lg transition-all ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'} disabled:opacity-50 disabled:cursor-not-allowed`}
+            title={isOccupiedByOther ? `被 ${occupiedBy} 占用中` : t('accountCard.switchAccount')}
           >
-            <Repeat size={14} className={`text-blue-500 ${switchingId === account.id ? 'animate-spin' : ''}`} />
+            <Repeat size={14} className={`${isOccupiedByOther ? 'text-gray-400' : 'text-blue-500'} ${switchingId === account.id ? 'animate-spin' : ''}`} />
           </button>
           <button 
             onClick={() => onRefresh(account.id)} 
