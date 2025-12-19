@@ -9,17 +9,7 @@ jobs:
   release:
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: windows-latest
-          - platform: macos-latest
-            target: x86_64-apple-darwin
-          - platform: macos-latest
-            target: aarch64-apple-darwin
-
-    runs-on: ${{ matrix.platform }}
+    runs-on: windows-latest
 
     steps:
       - name: Checkout from private repo
@@ -43,8 +33,6 @@ jobs:
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
 
       - name: Install dependencies
         run: npm ci
@@ -61,4 +49,3 @@ jobs:
           releaseBody: '请查看 CHANGELOG 了解更新内容。'
           releaseDraft: false
           prerelease: false
-          args: ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
