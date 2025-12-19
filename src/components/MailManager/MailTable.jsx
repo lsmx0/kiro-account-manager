@@ -11,6 +11,13 @@ function MailTable({ accounts, loading, selectedIds, onSelectChange, onDelete, o
   const [loadingCode, setLoadingCode] = useState(null) // 正在获取验证码的邮箱ID
   const [editingKiro, setEditingKiro] = useState(null) // 正在编辑 Kiro 密码的账号
   const [kiroPassword, setKiroPassword] = useState('')
+  const [toast, setToast] = useState(null) // Toast 提示 { message, type }
+
+  // 显示 Toast 提示
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 2000)
+  }
 
   // 复制到剪贴板
   const handleCopy = (text, id) => {
@@ -33,12 +40,13 @@ function MailTable({ accounts, loading, selectedIds, onSelectChange, onDelete, o
         // 复制验证码到剪贴板
         navigator.clipboard.writeText(result.code)
         setCopiedId(`code-${account.id}`)
+        showToast(`验证码 ${result.code} 已复制`, 'success')
         setTimeout(() => setCopiedId(null), 2000)
       } else {
-        alert(result.message || '获取验证码失败')
+        showToast(result.message || '获取验证码失败', 'error')
       }
     } catch (e) {
-      alert('获取验证码失败: ' + e)
+      showToast('获取验证码失败: ' + e, 'error')
     } finally {
       setLoadingCode(null)
     }
@@ -281,6 +289,20 @@ function MailTable({ accounts, loading, selectedIds, onSelectChange, onDelete, o
           ))}
         </tbody>
       </table>
+
+      {/* Toast 提示 */}
+      {toast && (
+        <div 
+          className={`fixed bottom-4 right-4 px-4 py-3 rounded-xl shadow-lg z-50 flex items-center gap-2 animate-slide-in ${
+            toast.type === 'success' 
+              ? 'bg-green-500/90 text-white' 
+              : 'bg-red-500/90 text-white'
+          }`}
+        >
+          {toast.type === 'success' ? <Check size={18} /> : <Key size={18} />}
+          <span>{toast.message}</span>
+        </div>
+      )}
     </div>
   )
 }

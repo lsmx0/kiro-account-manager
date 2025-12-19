@@ -94,14 +94,17 @@ pub struct MailItem {
     pub id: Option<i64>,
     #[serde(default)]
     pub subject: Option<String>,
-    #[serde(default)]
-    pub from_addr: Option<String>,
-    #[serde(default)]
-    pub to_addr: Option<String>,
+    #[serde(default, alias = "from_addr")]
+    pub from: Option<String>,
+    #[serde(default, alias = "to_addr")]
+    pub to: Option<String>,
     #[serde(default)]
     pub body: Option<String>,
     #[serde(default)]
     pub date: Option<String>,
+    // 允许其他未知字段
+    #[serde(flatten)]
+    pub extra: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -239,8 +242,54 @@ impl BtMailClient {
             return Err(format!("HTTP Error {}: {}", status, &text[..text.len().min(200)]));
         }
         
-        serde_json::from_str(&text)
-            .map_err(|_| format!("JSON解析失败: {}", &text[..text.len().min(200)]))
+        // 先用 Value 解析，更灵活
+        let json: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| format!("JSON解析失败: {}", e))?;
+        
+        // 手动提取数据
+        let outer_status = json.get("status").and_then(|v| v.as_bool()).unwrap_or(false);
+        let msg = json.get("msg").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        
+        let inner_data = if let Some(data) = json.get("data") {
+            let inner_status = data.get("status").and_then(|v| v.as_bool()).unwrap_or(false);
+            let mails = data.get("data").and_then(|v| v.as_array()).map(|arr| {
+                arr.iter().filter_map(|item| {
+                    // 尝试多个可能的字段名获取邮件内容
+                    let body = item.get("body")
+                        .or_else(|| item.get("content"))
+                        .or_else(|| item.get("text"))
+                        .or_else(|| item.get("html"))
+                        .or_else(|| item.get("message"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    
+                    Some(MailItem {
+                        id: item.get("id").and_then(|v| v.as_i64()),
+                        subject: item.get("subject").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                        from: item.get("from").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                        to: item.get("to").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                        body,
+                        date: item.get("date").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                        extra: Some(item.clone()),
+                    })
+                }).collect()
+            }).unwrap_or_default();
+            
+            Some(GetMailsInnerData {
+                status: inner_status,
+                data: mails,
+                page: None,
+            })
+        } else {
+            None
+        };
+        
+        Ok(GetMailsResponse {
+            code: json.get("code").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
+            status: outer_status,
+            msg,
+            data: inner_data,
+        })
     }
 
     /// 删除邮箱用户
@@ -322,26 +371,38 @@ pub fn generate_username(length: usize) -> String {
         .collect()
 }
 
-/// 从邮件 HTML 内容中提取验证码
-/// 查找 class="code" 的 div 元素中的数字
-pub fn extract_verification_code(html: &str) -> Option<String> {
+/// 从邮件内容中提取验证码
+/// 支持纯文本和 HTML 格式
+pub fn extract_verification_code(content: &str) -> Option<String> {
     use regex::Regex;
     
-    // 方法1: 查找 class="code" 的 div
+    // 方法1: 匹配 "验证码：: 123456" 或 "验证码: 123456" 格式（纯文本）
+    let cn_code_re = Regex::new(r"验证码[：:]+\s*(\d{4,8})").ok()?;
+    if let Some(caps) = cn_code_re.captures(content) {
+        return caps.get(1).map(|m| m.as_str().to_string());
+    }
+    
+    // 方法2: 匹配 "verification code: 123456" 格式
+    let en_code_re = Regex::new(r"(?i)verification\s*code[:\s]+(\d{4,8})").ok()?;
+    if let Some(caps) = en_code_re.captures(content) {
+        return caps.get(1).map(|m| m.as_str().to_string());
+    }
+    
+    // 方法3: 查找 class="code" 的 div（HTML 格式）
     let code_div_re = Regex::new(r#"<div[^>]*class="code"[^>]*>(\d{4,8})</div>"#).ok()?;
-    if let Some(caps) = code_div_re.captures(html) {
+    if let Some(caps) = code_div_re.captures(content) {
         return caps.get(1).map(|m| m.as_str().to_string());
     }
     
-    // 方法2: 查找任何包含 4-8 位数字的 code 相关元素
-    let code_re = Regex::new(r#"(?:code|验证码|verification)[^>]*>[\s]*(\d{4,8})[\s]*<"#).ok()?;
-    if let Some(caps) = code_re.captures(html) {
+    // 方法4: 查找 HTML 中的验证码
+    let html_code_re = Regex::new(r#"(?:code|验证码)[^>]*>[\s]*(\d{4,8})[\s]*<"#).ok()?;
+    if let Some(caps) = html_code_re.captures(content) {
         return caps.get(1).map(|m| m.as_str().to_string());
     }
     
-    // 方法3: 直接查找独立的 4-6 位数字（可能是验证码）
-    let simple_re = Regex::new(r#">[\s]*(\d{6})[\s]*<"#).ok()?;
-    if let Some(caps) = simple_re.captures(html) {
+    // 方法5: 查找独立的 6 位数字（最后手段）
+    let simple_re = Regex::new(r"(?:^|\s)(\d{6})(?:\s|$)").ok()?;
+    if let Some(caps) = simple_re.captures(content) {
         return caps.get(1).map(|m| m.as_str().to_string());
     }
     

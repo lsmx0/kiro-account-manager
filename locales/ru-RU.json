@@ -341,9 +341,11 @@
   "common.selected": "Выбрано",
 
   "update.newVersion": "Найдена новая версия",
+  "update.newVersionAvailable": "Доступна новая версия",
+  "update.readyToInstall": "готова к установке",
   "update.later": "Позже",
   "update.updateNow": "Обновить сейчас",
-  "update.downloading": "Загрузка... {percent}%",
+  "update.downloading": "Загрузка",
   "update.preparing": "Подготовка...",
   "update.failed": "Ошибка обновления",
   "update.installFailed": "Не удалось установить обновление",

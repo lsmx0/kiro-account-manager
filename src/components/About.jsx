@@ -31,9 +31,13 @@ function About() {
     setUpdateInfo(null)
     try {
       const update = await check()
+      console.log('[Update] 检查结果:', update)
       if (update) {
+        // Tauri updater 返回的版本号在 version 属性中
+        const newVersion = update.version || update.currentVersion || '未知版本'
+        console.log('[Update] 新版本:', newVersion)
         setUpdateInfo(update)
-        setUpdateStatus({ type: 'update', message: `发现新版本 ${update.version}`, update })
+        setUpdateStatus({ type: 'update', message: `发现新版本 ${newVersion}`, update, version: newVersion })
       } else {
         setUpdateStatus({ type: 'latest', message: '已是最新版本' })
       }
@@ -131,7 +135,7 @@ function About() {
               ) : (
                 <>
                   {updateStatus.type === 'latest' ? t('about.upToDate') : 
-                   updateStatus.type === 'update' ? t('about.newVersion', { version: updateInfo?.version || updateStatus.update?.version }) :
+                   updateStatus.type === 'update' ? t('about.newVersion', { version: updateStatus.version || updateInfo?.version || '新版本' }) :
                    t('about.updateFailed')}
                   {updateStatus.type === 'update' && (updateInfo || updateStatus.update) && (
                     <button 

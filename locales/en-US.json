@@ -355,9 +355,11 @@
 
   "update.newVersion": "New Version Found",
   "update.newVersionFound": "New Version Available",
+  "update.newVersionAvailable": "New Version Available",
+  "update.readyToInstall": "ready to install",
   "update.later": "Later",
   "update.updateNow": "Update Now",
-  "update.downloading": "Downloading update",
+  "update.downloading": "Downloading",
   "update.preparing": "Preparing...",
   "update.failed": "Update Failed",
   "update.installFailed": "Failed to install update",

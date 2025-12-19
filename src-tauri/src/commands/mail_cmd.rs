@@ -343,22 +343,66 @@ pub async fn mail_get_verification_code(
             let latest_mail = &inner_data.data[0];
             println!("  最新邮件主题: {:?}", latest_mail.subject);
             
+            // 尝试从多个来源获取邮件内容
+            // 优先级: body > html > text (html 比 text 更干净，text 包含邮件头)
+            let mut content = String::new();
+            
+            // 1. 首先尝试 body 字段
             if let Some(body) = &latest_mail.body {
+                if !body.is_empty() {
+                    content = body.clone();
+                    println!("  [调试] 从 body 字段获取内容，长度: {}", content.len());
+                }
+            }
+            
+            // 2. 如果 body 为空，尝试从 extra 中获取 html 或其他字段
+            if content.is_empty() {
+                if let Some(extra) = &latest_mail.extra {
+                    // 优先使用 html 字段（更干净），然后是其他字段
+                    let possible_fields = ["html", "body", "content", "text", "message", "plain"];
+                    for field in possible_fields {
+                        if let Some(val) = extra.get(field) {
+                            if let Some(s) = val.as_str() {
+                                if !s.is_empty() {
+                                    content = s.to_string();
+                                    println!("  [调试] 从 extra.{} 获取内容，长度: {}", field, content.len());
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if !content.is_empty() {
+                // 打印内容用于调试
+                println!("  邮件内容长度: {} 字符", content.len());
+                println!("  邮件内容前2000字符:\n{}", &content[..content.len().min(2000)]);
+                
                 // 解析验证码
-                if let Some(code) = extract_verification_code(body) {
+                if let Some(code) = extract_verification_code(&content) {
                     println!("  [成功] 验证码: {}", code);
                     return Ok(GetCodeResult {
                         success: true,
                         code: Some(code),
                         message: "获取成功".to_string(),
                     });
+                } else {
+                    println!("  [调试] 未能从内容中提取验证码");
+                }
+            } else {
+                println!("  [调试] 邮件内容为空，可能需要单独获取邮件详情");
+                // 打印完整的邮件对象用于调试
+                if let Some(extra) = &latest_mail.extra {
+                    println!("  [调试] 完整邮件数据: {}", 
+                        serde_json::to_string_pretty(extra).unwrap_or_default());
                 }
             }
             
             Ok(GetCodeResult {
                 success: false,
                 code: None,
-                message: "未找到验证码".to_string(),
+                message: "未找到验证码，邮件内容可能为空".to_string(),
             })
         }
         Err(e) => {

@@ -13,7 +13,7 @@ import Login from './components/Login'
 import WebOAuthLogin from './components/WebOAuthLogin'
 import AuthCallback from './components/AuthCallback'
 import GlobalLogin from './components/GlobalLogin'
-// import UpdateChecker from './components/UpdateChecker'
+import UpdateNotification from './components/UpdateNotification'
 
 import { useTheme } from './contexts/ThemeContext'
 import { isLoggedIn as checkSyncLogin, isAdmin as checkIsAdmin } from './services/authService'
@@ -298,7 +298,8 @@ function App() {
         {renderContent()}
       </main>
       
-      {/* <UpdateChecker /> */}
+      {/* 右下角更新提示 */}
+      <UpdateNotification />
     </div>
   )
 }
