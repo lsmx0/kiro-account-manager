@@ -66,6 +66,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/heartbeat", post(handlers::account::heartbeat))
         .route("/api/sync", get(handlers::sync::get_sync_data))
         .route("/api/sync", post(handlers::sync::post_sync_data))
+        .route("/api/sync/account", delete(handlers::sync::delete_sync_account))
         // 用户管理接口（仅管理员）
         .route("/api/users", get(handlers::users::list_users))
         .route("/api/users", post(handlers::users::create_user))

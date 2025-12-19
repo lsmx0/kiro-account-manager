@@ -215,21 +215,51 @@ function AccountManager() {
   const handleSelectOne = useCallback((id, checked) => { setSelectedIds(prev => checked ? [...prev, id] : prev.filter(i => i !== id)) }, [])
   const handleCopy = useCallback((text, id) => { navigator.clipboard.writeText(text); setCopiedId(id); setTimeout(() => setCopiedId(null), 1500) }, [])
   
-  // 删除单个账号
+  // 删除单个账号（同时同步到云端）
   const handleDelete = useCallback(async (id) => {
     const confirmed = await showConfirm(t('accounts.delete'), t('accounts.confirmDelete'))
     if (confirmed) {
+      // 1. 删除本地账号
       await invoke('delete_account', { id })
+      
+      // 2. 同步删除到云端（如果已登录）
+      if (isLoggedIn()) {
+        try {
+          const { deleteAccountFromCloud } = await import('../../services/syncService')
+          const result = await deleteAccountFromCloud(id)
+          if (!result.success) {
+            console.warn('[Delete] 云端同步删除失败:', result.error)
+          }
+        } catch (e) {
+          console.warn('[Delete] 云端同步删除异常:', e)
+        }
+      }
+      
       loadAccounts()
     }
   }, [showConfirm, loadAccounts, t])
 
-  // 批量删除
+  // 批量删除（同时同步到云端）
   const onBatchDelete = useCallback(async () => {
     if (selectedIds.length === 0) return
     const confirmed = await showConfirm(t('accounts.batchDelete'), t('accounts.confirmDeleteMultiple', { count: selectedIds.length }))
     if (confirmed) {
+      // 1. 删除本地账号
       await invoke('delete_accounts', { ids: selectedIds })
+      
+      // 2. 同步删除到云端（如果已登录）
+      if (isLoggedIn()) {
+        try {
+          const { deleteAccountFromCloud } = await import('../../services/syncService')
+          // 逐个删除云端账号
+          for (const id of selectedIds) {
+            await deleteAccountFromCloud(id)
+          }
+        } catch (e) {
+          console.warn('[BatchDelete] 云端同步删除异常:', e)
+        }
+      }
+      
       setSelectedIds([])
       loadAccounts()
     }

@@ -77,24 +77,18 @@ export function getLastSyncedAt(): string | null {
 
 /**
  * 智能合并账号数据
- * 策略：并集 (Union)，本地优先 (Local Wins)
+ * 策略：本地优先 (Local Wins)
+ * 
+ * 合并规则：
+ * - 本地存在的账号：使用本地数据
+ * - 本地不存在但云端存在：视为已删除，不保留
+ * - 云端不存在但本地存在：视为新增，保留
+ * 
+ * 注意：这意味着本地删除的账号会在同步后从云端删除
  */
-export function mergeAccounts(localAccounts: Account[], remoteAccounts: Account[]): Account[] {
-  const merged = new Map<string, Account>();
-  
-  // 1. 先放入远程数据
-  for (const acc of remoteAccounts) {
-    merged.set(acc.id, acc);
-  }
-  
-  // 2. 遍历本地数据
-  for (const acc of localAccounts) {
-    // 本地数据覆盖远程（Local Wins）
-    // 或者是本地新增的账号
-    merged.set(acc.id, acc);
-  }
-  
-  return Array.from(merged.values());
+export function mergeAccounts(localAccounts: Account[], _remoteAccounts: Account[]): Account[] {
+  // 本地数据即为最终结果（本地删除 = 真删除）
+  return [...localAccounts];
 }
 
 // ==================== API 调用 (使用 Tauri HTTP 插件 + JWT 认证) ====================
@@ -291,9 +285,9 @@ export async function pullFromCloud(
       };
     }
     
-    // 获取本地数据并合并
-    const localAccounts = await getLocalAccounts();
-    const mergedAccounts = mergeAccounts(localAccounts, remoteAccounts);
+    // 拉取时直接使用云端数据（云端覆盖本地）
+    // 如果需要合并，应该使用"同步"功能而不是"拉取"
+    const mergedAccounts = remoteAccounts;
     
     // 保存
     await saveLocalAccounts(mergedAccounts);
@@ -321,4 +315,41 @@ export function getSyncState(): SyncState {
     lastSyncedVersion: getLastSyncedVersion(),
     lastSyncedAt: getLastSyncedAt(),
   };
+}
+
+/**
+ * 从云端删除指定账号
+ * 用于多用户场景下的删除同步
+ */
+export async function deleteAccountFromCloud(accountId: string): Promise<SyncResult> {
+  if (!isLoggedIn()) {
+    return { success: false, message: '请先登录', error: '未登录' };
+  }
+
+  try {
+    const response = await tauriFetch(`${SYNC_API_BASE}/api/sync/account`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ account_id: accountId }),
+    });
+
+    if (response.status === 401) {
+      return { success: false, message: '登录已过期', error: '请重新登录' };
+    }
+
+    if (response.ok) {
+      const result = await response.json();
+      setLastSyncedVersion(result.new_version);
+      return { success: true, message: '已从云端删除' };
+    }
+
+    return { success: false, message: '删除失败', error: `状态码: ${response.status}` };
+  } catch (e) {
+    console.error('[SyncService] 删除云端账号失败:', e);
+    return {
+      success: false,
+      message: '删除失败',
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
 }
