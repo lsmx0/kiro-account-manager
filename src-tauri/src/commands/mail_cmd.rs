@@ -292,3 +292,73 @@ pub async fn mail_get_user_by_email(
     let db = state.db.lock().await;
     db.get_by_email(&email).await
 }
+
+// ==================== 获取验证码 ====================
+
+/// 获取邮箱验证码
+/// 从收件箱获取最新邮件并解析验证码
+#[tauri::command]
+pub async fn mail_get_verification_code(
+    email: String,
+) -> Result<crate::bt_mail::GetCodeResult, String> {
+    use crate::bt_mail::{BtMailClient, GetCodeResult, extract_verification_code};
+    
+    println!("获取验证码: {}", email);
+    
+    let api = BtMailClient::new();
+    
+    // 获取收件箱
+    match api.get_mails(&email).await {
+        Ok(response) => {
+            if response.data.is_empty() {
+                return Ok(GetCodeResult {
+                    success: false,
+                    code: None,
+                    message: "收件箱为空".to_string(),
+                });
+            }
+            
+            // 获取最新一封邮件
+            let latest_mail = &response.data[0];
+            
+            if let Some(body) = &latest_mail.body {
+                // 解析验证码
+                if let Some(code) = extract_verification_code(body) {
+                    println!("  [成功] 验证码: {}", code);
+                    return Ok(GetCodeResult {
+                        success: true,
+                        code: Some(code),
+                        message: "获取成功".to_string(),
+                    });
+                }
+            }
+            
+            Ok(GetCodeResult {
+                success: false,
+                code: None,
+                message: "未找到验证码".to_string(),
+            })
+        }
+        Err(e) => {
+            println!("  [失败] {}", e);
+            Ok(GetCodeResult {
+                success: false,
+                code: None,
+                message: format!("获取邮件失败: {}", e),
+            })
+        }
+    }
+}
+
+// ==================== 更新 Kiro 密码 ====================
+
+/// 更新邮箱账户的 Kiro 密码
+#[tauri::command]
+pub async fn mail_update_kiro_password(
+    state: State<'_, MailState>,
+    id: i32,
+    kiro_pawd: String,
+) -> Result<bool, String> {
+    let db = state.db.lock().await;
+    db.update_kiro_password(id, &kiro_pawd).await
+}

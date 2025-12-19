@@ -183,6 +183,8 @@ fn main() {
             mail_get_kiro_users,
             mail_get_user_by_id,
             mail_get_user_by_email,
+            mail_get_verification_code,
+            mail_update_kiro_password,
             // 云端同步命令已迁移到前端实现
         ])
         .run(tauri::generate_context!())

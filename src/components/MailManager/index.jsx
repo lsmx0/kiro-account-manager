@@ -218,6 +218,7 @@ function MailManager() {
           selectedIds={selectedIds}
           onSelectChange={setSelectedIds}
           onDelete={handleDelete}
+          onRefresh={loadAccounts}
         />
       </div>
 

@@ -199,4 +199,24 @@ impl MailDbManager {
     pub async fn get_kiro_bound(&self) -> Result<Vec<MailAccount>, String> {
         self.query(QueryParams { is_kiro: Some(1), ..Default::default() }).await
     }
+
+    /// 更新 Kiro 密码
+    /// 同时会自动设置 is_kiro = 1（如果密码不为空）
+    pub async fn update_kiro_password(&self, id: i32, kiro_pawd: &str) -> Result<bool, String> {
+        let mut conn = self.pool.get_conn().await
+            .map_err(|e| format!("获取连接失败: {}", e))?;
+        
+        // 如果密码不为空，同时设置 is_kiro = 1
+        let is_kiro = if kiro_pawd.trim().is_empty() { 0 } else { 1 };
+        
+        let sql = format!(
+            "UPDATE {} SET kiro_pawd = ?, is_kiro = ? WHERE id = ?",
+            TABLE_NAME
+        );
+        
+        conn.exec_drop(&sql, (kiro_pawd, is_kiro, id)).await
+            .map_err(|e| format!("更新失败: {}", e))?;
+        
+        Ok(conn.affected_rows() > 0)
+    }
 }

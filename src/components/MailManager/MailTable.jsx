@@ -1,12 +1,16 @@
 import { useState } from 'react'
-import { Trash2, Copy, Check, Eye, EyeOff } from 'lucide-react'
+import { invoke } from '@tauri-apps/api/core'
+import { Trash2, Copy, Check, Eye, EyeOff, Key, Edit2, Loader2 } from 'lucide-react'
 import { useTheme } from '../../contexts/ThemeContext'
 
-function MailTable({ accounts, loading, selectedIds, onSelectChange, onDelete }) {
+function MailTable({ accounts, loading, selectedIds, onSelectChange, onDelete, onRefresh }) {
   const { theme, colors } = useTheme()
   const isDark = theme === 'dark'
   const [copiedId, setCopiedId] = useState(null)
   const [showPasswords, setShowPasswords] = useState({})
+  const [loadingCode, setLoadingCode] = useState(null) // 正在获取验证码的邮箱ID
+  const [editingKiro, setEditingKiro] = useState(null) // 正在编辑 Kiro 密码的账号
+  const [kiroPassword, setKiroPassword] = useState('')
 
   // 复制到剪贴板
   const handleCopy = (text, id) => {
@@ -18,6 +22,53 @@ function MailTable({ accounts, loading, selectedIds, onSelectChange, onDelete })
   // 切换密码显示
   const togglePassword = (id) => {
     setShowPasswords(prev => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  // 获取验证码
+  const handleGetCode = async (account) => {
+    setLoadingCode(account.id)
+    try {
+      const result = await invoke('mail_get_verification_code', { email: account.email })
+      if (result.success && result.code) {
+        // 复制验证码到剪贴板
+        navigator.clipboard.writeText(result.code)
+        setCopiedId(`code-${account.id}`)
+        setTimeout(() => setCopiedId(null), 2000)
+      } else {
+        alert(result.message || '获取验证码失败')
+      }
+    } catch (e) {
+      alert('获取验证码失败: ' + e)
+    } finally {
+      setLoadingCode(null)
+    }
+  }
+
+  // 开始编辑 Kiro 密码
+  const startEditKiro = (account) => {
+    setEditingKiro(account.id)
+    setKiroPassword(account.kiroPawd || '')
+  }
+
+  // 保存 Kiro 密码
+  const saveKiroPassword = async (account) => {
+    try {
+      await invoke('mail_update_kiro_password', { 
+        id: account.id, 
+        kiroPawd: kiroPassword 
+      })
+      setEditingKiro(null)
+      setKiroPassword('')
+      onRefresh?.() // 刷新列表
+    } catch (e) {
+      alert('保存失败: ' + e)
+    }
+  }
+
+  // 取消编辑
+  const cancelEditKiro = () => {
+    setEditingKiro(null)
+    setKiroPassword('')
   }
 
   // 全选
@@ -134,9 +185,55 @@ function MailTable({ accounts, loading, selectedIds, onSelectChange, onDelete })
                 </div>
               </td>
               <td className="px-4 py-3">
-                <span className={`text-sm ${colors.textMuted}`}>
-                  {account.kiroPawd || '-'}
-                </span>
+                {editingKiro === account.id ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={kiroPassword}
+                      onChange={(e) => setKiroPassword(e.target.value)}
+                      className={`w-32 px-2 py-1 text-sm rounded border ${colors.input} ${colors.text}`}
+                      placeholder="输入密码"
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => saveKiroPassword(account)}
+                      className="p-1 rounded text-green-500 hover:bg-green-500/10"
+                    >
+                      <Check size={14} />
+                    </button>
+                    <button
+                      onClick={cancelEditKiro}
+                      className={`p-1 rounded ${colors.textMuted} hover:bg-red-500/10`}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm ${account.kiroPawd ? colors.text : colors.textMuted}`}>
+                      {account.kiroPawd || '-'}
+                    </span>
+                    <button
+                      onClick={() => startEditKiro(account)}
+                      className={`p-1 rounded ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-200'}`}
+                      title="编辑 Kiro 密码"
+                    >
+                      <Edit2 size={14} className={colors.textMuted} />
+                    </button>
+                    {account.kiroPawd && (
+                      <button
+                        onClick={() => handleCopy(account.kiroPawd, `kiro-${account.id}`)}
+                        className={`p-1 rounded ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-200'}`}
+                      >
+                        {copiedId === `kiro-${account.id}` ? (
+                          <Check size={14} className="text-green-500" />
+                        ) : (
+                          <Copy size={14} className={colors.textMuted} />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                )}
               </td>
               <td className="px-4 py-3">
                 {account.isKiro === 1 ? (
@@ -149,14 +246,36 @@ function MailTable({ accounts, loading, selectedIds, onSelectChange, onDelete })
                   </span>
                 )}
               </td>
-              <td className="px-4 py-3 text-right">
-                <button
-                  onClick={() => onDelete(account)}
-                  className="p-2 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
-                  title="删除"
-                >
-                  <Trash2 size={16} />
-                </button>
+              <td className="px-4 py-3">
+                <div className="flex items-center justify-end gap-1">
+                  {/* 获取验证码按钮 */}
+                  <button
+                    onClick={() => handleGetCode(account)}
+                    disabled={loadingCode === account.id}
+                    className={`p-2 rounded-lg transition-colors ${
+                      copiedId === `code-${account.id}`
+                        ? 'text-green-500 bg-green-500/10'
+                        : 'text-blue-500 hover:bg-blue-500/10'
+                    }`}
+                    title="获取验证码"
+                  >
+                    {loadingCode === account.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : copiedId === `code-${account.id}` ? (
+                      <Check size={16} />
+                    ) : (
+                      <Key size={16} />
+                    )}
+                  </button>
+                  {/* 删除按钮 */}
+                  <button
+                    onClick={() => onDelete(account)}
+                    className="p-2 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
+                    title="删除"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
