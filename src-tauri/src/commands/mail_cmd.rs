@@ -310,7 +310,28 @@ pub async fn mail_get_verification_code(
     // 获取收件箱
     match api.get_mails(&email).await {
         Ok(response) => {
-            if response.data.is_empty() {
+            // 检查外层状态
+            if !response.status {
+                return Ok(GetCodeResult {
+                    success: false,
+                    code: None,
+                    message: format!("API 错误: {}", response.msg),
+                });
+            }
+            
+            // 获取内层数据
+            let inner_data = match response.data {
+                Some(d) => d,
+                None => {
+                    return Ok(GetCodeResult {
+                        success: false,
+                        code: None,
+                        message: "响应数据为空".to_string(),
+                    });
+                }
+            };
+            
+            if inner_data.data.is_empty() {
                 return Ok(GetCodeResult {
                     success: false,
                     code: None,
@@ -319,7 +340,8 @@ pub async fn mail_get_verification_code(
             }
             
             // 获取最新一封邮件
-            let latest_mail = &response.data[0];
+            let latest_mail = &inner_data.data[0];
+            println!("  最新邮件主题: {:?}", latest_mail.subject);
             
             if let Some(body) = &latest_mail.body {
                 // 解析验证码

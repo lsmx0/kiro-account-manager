@@ -64,9 +64,24 @@ pub struct DeleteResult {
     pub deleted_email: Option<String>,
 }
 
-// 获取邮件响应
+// 获取邮件响应 - 外层结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GetMailsResponse {
+    #[serde(default)]
+    pub code: i32,
+    #[serde(default)]
+    pub status: bool,
+    #[serde(default)]
+    pub msg: String,
+    #[serde(default)]
+    pub data: Option<GetMailsInnerData>,
+}
+
+// 获取邮件响应 - 内层 data 结构
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetMailsInnerData {
+    #[serde(default)]
+    pub status: bool,
     #[serde(default)]
     pub data: Vec<MailItem>,
     #[serde(default)]
