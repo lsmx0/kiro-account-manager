@@ -88,3 +88,42 @@ export function getAuthHeaders(): Record<string, string> {
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
   };
 }
+
+// ==================== 验证 Token ====================
+
+/**
+ * 验证当前 token 是否有效
+ * 通过调用一个需要认证的 API 来检查
+ */
+export async function verifyToken(): Promise<boolean> {
+  const token = getToken();
+  if (!token) {
+    return false;
+  }
+
+  try {
+    const response = await tauriFetch(`${API_BASE}/api/me`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    if (response.status === 401) {
+      // Token 过期，清除登录状态
+      clearToken();
+      return false;
+    }
+
+    if (response.ok) {
+      // 更新用户信息
+      const user: UserInfo = await response.json();
+      setStoredUser(user);
+      return true;
+    }
+
+    return false;
+  } catch (e) {
+    console.error('[AuthService] 验证 token 失败:', e);
+    // 网络错误时不清除 token，保持登录状态
+    return true;
+  }
+}

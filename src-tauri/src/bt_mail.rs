@@ -300,6 +300,9 @@ impl BtMailClient {
         // 使用正确的 API 路径
         let api_url = format!("{}/mail_sys/delete_mailbox.json", self.url);
         
+        println!("[BtMailClient] 删除邮箱 API: {}", api_url);
+        println!("[BtMailClient] 参数: username={}", email);
+        
         let mut params = HashMap::new();
         params.insert("request_time", request_time.to_string());
         params.insert("request_token", signature);
@@ -317,6 +320,9 @@ impl BtMailClient {
         
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
+        
+        println!("[BtMailClient] HTTP 状态: {}", status);
+        println!("[BtMailClient] 响应内容: {}", &text[..text.len().min(500)]);
         
         if !status.is_success() {
             return Err(format!("HTTP Error {}", status));

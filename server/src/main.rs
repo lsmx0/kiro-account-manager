@@ -62,6 +62,7 @@ async fn main() -> anyhow::Result<()> {
         // 公开接口
         .route("/api/login", post(handlers::auth::login))
         // 需要认证的接口
+        .route("/api/me", get(handlers::auth::get_me))
         .route("/api/account/occupy", post(handlers::account::occupy))
         .route("/api/heartbeat", post(handlers::account::heartbeat))
         .route("/api/sync", get(handlers::sync::get_sync_data))

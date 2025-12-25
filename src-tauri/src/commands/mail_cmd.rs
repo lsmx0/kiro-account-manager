@@ -140,13 +140,15 @@ pub async fn mail_create_users(
 // ==================== 删除用户 ====================
 
 /// 删除邮箱账户 (按邮箱或ID)
-/// 流程: 查找账号 -> 调用 API 删除 -> 成功后删除数据库记录
+/// 流程: 查找账号 -> 调用 API 删除邮局账户 -> 成功后删除数据库记录
 #[tauri::command]
 pub async fn mail_delete_user(
     state: State<'_, MailState>,
     email: Option<String>,
     id: Option<i32>,
 ) -> Result<DeleteResult, String> {
+    println!("[mail_delete_user] 开始删除，email={:?}, id={:?}", email, id);
+    
     // 确定要删除的邮箱
     let target_email = if let Some(e) = email {
         e
@@ -155,6 +157,7 @@ pub async fn mail_delete_user(
         match db.get_by_id(account_id).await? {
             Some(acc) => acc.email,
             None => {
+                println!("[mail_delete_user] 未找到 ID 为 {} 的账号", account_id);
                 return Ok(DeleteResult {
                     success: false,
                     message: format!("未找到 ID 为 {} 的账号", account_id),
@@ -166,12 +169,13 @@ pub async fn mail_delete_user(
         return Err("请提供邮箱地址或账号ID".to_string());
     };
 
-    println!("删除邮箱: {}", target_email);
+    println!("[mail_delete_user] 目标邮箱: {}", target_email);
 
     // 检查数据库中是否存在
     {
         let db = state.db.lock().await;
         if db.get_by_email(&target_email).await?.is_none() {
+            println!("[mail_delete_user] 数据库中未找到账户: {}", target_email);
             return Ok(DeleteResult {
                 success: false,
                 message: format!("数据库中未找到账户: {}", target_email),
@@ -180,41 +184,51 @@ pub async fn mail_delete_user(
         }
     }
 
-    // 步骤1: 调用 API 删除邮局账户
+    // 步骤1: 调用宝塔 API 删除邮局账户
+    println!("[mail_delete_user] 步骤1: 调用宝塔 API 删除邮局账户...");
     let api = BtMailClient::new();
     let api_result = api.delete_user(&target_email).await;
+    println!("[mail_delete_user] API 返回结果: {:?}", api_result);
 
     match api_result {
         Ok(res) if res.status => {
             // API 成功，步骤2: 删除数据库记录
+            println!("[mail_delete_user] 步骤2: API 删除成功，删除数据库记录...");
             let db = state.db.lock().await;
             match db.delete_by_email(&target_email).await {
                 Ok(true) => {
-                    println!("  [成功] 已删除");
+                    println!("[mail_delete_user] 删除完成: {}", target_email);
                     Ok(DeleteResult {
                         success: true,
-                        message: format!("账户 {} 删除成功", target_email),
+                        message: format!("账户 {} 删除成功（邮局+数据库）", target_email),
                         deleted_email: Some(target_email),
                     })
                 }
-                Ok(false) => Ok(DeleteResult {
-                    success: false,
-                    message: format!("API删除成功但数据库中未找到记录: {}", target_email),
-                    deleted_email: None,
-                }),
-                Err(e) => Ok(DeleteResult {
-                    success: false,
-                    message: format!("API删除成功但数据库删除失败: {}", e),
-                    deleted_email: None,
-                }),
+                Ok(false) => {
+                    println!("[mail_delete_user] API删除成功但数据库中未找到记录");
+                    Ok(DeleteResult {
+                        success: false,
+                        message: format!("API删除成功但数据库中未找到记录: {}", target_email),
+                        deleted_email: None,
+                    })
+                }
+                Err(e) => {
+                    println!("[mail_delete_user] API删除成功但数据库删除失败: {}", e);
+                    Ok(DeleteResult {
+                        success: false,
+                        message: format!("API删除成功但数据库删除失败: {}", e),
+                        deleted_email: None,
+                    })
+                }
             }
         }
         Ok(res) => {
             // API 失败 - 检查是否为"不存在"错误
+            println!("[mail_delete_user] API 返回失败: {}", res.msg);
             let msg_lower = res.msg.to_lowercase();
             if msg_lower.contains("not exist") || res.msg.contains("不存在") {
                 // 邮局中不存在，清理数据库记录
-                println!("  [警告] 邮局中不存在，清理数据库记录");
+                println!("[mail_delete_user] 邮局中不存在，清理数据库记录");
                 let db = state.db.lock().await;
                 let _ = db.delete_by_email(&target_email).await;
                 Ok(DeleteResult {
@@ -230,11 +244,14 @@ pub async fn mail_delete_user(
                 })
             }
         }
-        Err(e) => Ok(DeleteResult {
-            success: false,
-            message: format!("请求异常: {}", e),
-            deleted_email: None,
-        }),
+        Err(e) => {
+            println!("[mail_delete_user] API 请求异常: {}", e);
+            Ok(DeleteResult {
+                success: false,
+                message: format!("请求异常: {}", e),
+                deleted_email: None,
+            })
+        }
     }
 }
 

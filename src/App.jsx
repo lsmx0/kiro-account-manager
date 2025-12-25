@@ -16,7 +16,7 @@ import GlobalLogin from './components/GlobalLogin'
 import UpdateNotification from './components/UpdateNotification'
 
 import { useTheme } from './contexts/ThemeContext'
-import { isLoggedIn as checkSyncLogin, isAdmin as checkIsAdmin } from './services/authService'
+import { isLoggedIn as checkSyncLogin, isAdmin as checkIsAdmin, verifyToken, clearToken } from './services/authService'
 
 function App() {
   const [user, setUser] = useState(null)
@@ -28,10 +28,32 @@ function App() {
 
   // 检查云端同步登录状态和管理员权限
   const [isAdminUser, setIsAdminUser] = useState(false)
+  const [tokenVerified, setTokenVerified] = useState(false)
   
+  // 启动时验证 token 有效性
   useEffect(() => {
-    setSyncLoggedIn(checkSyncLogin())
-    setIsAdminUser(checkIsAdmin())
+    const verifyAndSetLogin = async () => {
+      if (checkSyncLogin()) {
+        console.log('[Auth] 检测到已登录，验证 token...')
+        const isValid = await verifyToken()
+        if (isValid) {
+          console.log('[Auth] Token 有效')
+          setSyncLoggedIn(true)
+          setIsAdminUser(checkIsAdmin())
+        } else {
+          console.log('[Auth] Token 已过期，需要重新登录')
+          clearToken()
+          setSyncLoggedIn(false)
+          setIsAdminUser(false)
+        }
+      } else {
+        setSyncLoggedIn(false)
+        setIsAdminUser(false)
+      }
+      setTokenVerified(true)
+    }
+    
+    verifyAndSetLogin()
   }, [])
 
   // 启动时只刷新 token（不获取 usage，快速启动）
@@ -123,7 +145,7 @@ function App() {
     }
   }
 
-  // 首次启动：自动保存本地 Kiro 账号并同步
+  // 首次启动：自动保存本地 Kiro 账号并同步，同时占用当前账号
   const autoSaveAndSync = async () => {
     try {
       // 检查是否有本地 Kiro 账号
@@ -146,6 +168,26 @@ function App() {
         await invoke('add_local_kiro_account').catch(e => {
           console.warn('[AutoSync] 保存本地账号失败:', e)
         })
+      }
+      
+      // 自动占用当前正在使用的账号
+      if (syncLoggedIn) {
+        try {
+          const updatedAccounts = await invoke('get_accounts').catch(() => [])
+          const currentAccount = updatedAccounts.find(acc => 
+            acc.refreshToken === localToken.refreshToken
+          )
+          if (currentAccount) {
+            console.log('[AutoSync] 自动占用当前账号:', currentAccount.email)
+            const { occupyAccount, sendHeartbeat } = await import('./services/occupyService')
+            await occupyAccount(currentAccount.id)
+            // 发送心跳更新占用状态
+            await sendHeartbeat(currentAccount.id)
+            console.log('[AutoSync] 账号占用成功')
+          }
+        } catch (e) {
+          console.warn('[AutoSync] 自动占用失败:', e)
+        }
       }
       
       // 使用新的前端同步服务执行云端同步
@@ -260,10 +302,10 @@ function App() {
     }
   }
 
-  if (loading) {
+  if (loading || !tokenVerified) {
     return (
       <div className="h-screen bg-[#0d0d0d] flex items-center justify-center">
-        <div className="text-white">加载中...</div>
+        <div className="text-white">{!tokenVerified ? '验证登录状态...' : '加载中...'}</div>
       </div>
     )
   }

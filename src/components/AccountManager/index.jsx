@@ -70,15 +70,24 @@ function AccountManager() {
     const currentAccount = accounts.find(acc => acc.refreshToken === localToken.refreshToken)
     if (currentAccount && !activeAccountId) {
       console.log('[AutoOccupy] 检测到当前使用账号:', currentAccount.email)
-      // 自动占用当前账号
-      occupyAccount(currentAccount.id)
-        .then(result => {
-          if (result.success) {
+      // 自动占用当前账号并立即更新状态
+      const doAutoOccupy = async () => {
+        try {
+          const occupyResult = await occupyAccount(currentAccount.id)
+          if (occupyResult.success) {
             console.log('[AutoOccupy] 自动占用成功')
             setActiveAccountId(currentAccount.id)
           }
-        })
-        .catch(e => console.warn('[AutoOccupy] 自动占用失败:', e))
+          // 立即发送心跳获取最新占用状态
+          const heartbeatResult = await sendHeartbeat(currentAccount.id)
+          const map = toOccupancyRecord(heartbeatResult.occupancy_map)
+          console.log('[AutoOccupy] 占用状态已更新:', map)
+          setOccupancyMap(map)
+        } catch (e) {
+          console.warn('[AutoOccupy] 自动占用失败:', e)
+        }
+      }
+      doAutoOccupy()
     }
   }, [localToken, accounts, activeAccountId])
 
